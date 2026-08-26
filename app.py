@@ -100,6 +100,7 @@ colunas_exibir = {
     "NM_URNA_CANDIDATO": "Candidato",
     "SG_PARTIDO": "Partido",
     "SG_UF": "UF",
+    "POPULACAO": "População UF",
     "QT_VOTOS_TOTAL": "Votos",
     "VR_DESPESA_TOTAL": "Despesa (R$)",
     "CUSTO_POR_VOTO": "Custo/Voto (R$)"
@@ -121,7 +122,8 @@ st.dataframe(
     column_config={
         "Despesa (R$)": st.column_config.NumberColumn(format="R$ %.2f"),
         "Custo/Voto (R$)": st.column_config.NumberColumn(format="R$ %.2f"),
-        "Votos": st.column_config.NumberColumn(format="%d")
+        "Votos": st.column_config.NumberColumn(format="%d"),
+        "População UF": st.column_config.NumberColumn(format="%d")
     },
 )
 
