@@ -51,15 +51,11 @@ st.caption("Cruzamento de Despesas de Campanha (TSE), Votação (TSE) e Populaç
 try:
     dados = carregar_dados()
     geojson_brasil = carregar_geojson()
-    try:
-    dados = carregar_dados()
-    geojson_brasil = carregar_geojson()
     
     # --- EXPULSA OS "NÃO ELEITOS" DO ARQUIVO ---
     if "DS_SIT_TOT_TURNO" in dados.columns:
         dados = dados[~dados["DS_SIT_TOT_TURNO"].str.upper().str.contains("NÃO ELEITO", na=False)]
-
-except FileNotFoundError as e:
+        
 except FileNotFoundError as e:
     st.error(f"Erro de arquivo: {e}")
     st.stop()
@@ -109,9 +105,12 @@ colunas_exibir = {
     "CUSTO_POR_VOTO": "Custo/Voto (R$)"
 }
 
+# Verifica quais colunas existem para evitar erros
+colunas_presentes = {k: v for k, v in colunas_exibir.items() if k in dados_filtrados.columns}
+
 tabela = (
-    dados_filtrados[list(colunas_exibir.keys())]
-    .rename(columns=colunas_exibir)
+    dados_filtrados[list(colunas_presentes.keys())]
+    .rename(columns=colunas_presentes)
     .sort_values("Custo/Voto (R$)", ascending=False)
 )
 
@@ -135,10 +134,9 @@ st.download_button(
 
 st.divider()
 
-# ---- NOVO: Mapa do Brasil ----
+# ---- Mapa do Brasil ----
 st.subheader("🗺️ Calor: Custo Médio por Voto nos Estados")
 
-# Calcula o custo médio real do estado (Total Gasto / Total Votos)
 mapa_dados = dados_filtrados.groupby("SG_UF", as_index=False).agg(
     VR_DESPESA_TOTAL=("VR_DESPESA_TOTAL", "sum"),
     QT_VOTOS_TOTAL=("QT_VOTOS_TOTAL", "sum")
@@ -155,7 +153,6 @@ fig_mapa = px.choropleth(
     title="Custo Médio do Voto (R$) por Estado",
     labels={"CUSTO_MEDIO_UF": "Custo/Voto (R$)", "SG_UF": "Estado"}
 )
-# Centraliza o mapa e desabilita completamente interações de zoom
 fig_mapa.update_geos(fitbounds="locations", visible=False)
 fig_mapa.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, dragmode=False)
 
@@ -163,12 +160,11 @@ st.plotly_chart(fig_mapa, width="stretch", config=CONFIG_GRAFICOS)
 
 st.divider()
 
-# ---- Rankings de Custo por Voto (Com Bloqueio de Zoom) ----
+# ---- Rankings de Custo por Voto ----
 st.subheader("🏆 Rankings: Custo por Voto")
 
 col_rank1, col_rank2 = st.columns(2)
 
-# 1. Top 10 Votos Mais Caros
 top10_caros = dados_filtrados.sort_values("CUSTO_POR_VOTO", ascending=False).head(10)
 fig_caros = px.bar(
     top10_caros,
@@ -179,7 +175,6 @@ fig_caros = px.bar(
     labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo (R$)"},
     color_discrete_sequence=["#EF553B"]
 )
-# Correção: O yaxis agora tem as duas instruções (ordem e bloqueio de zoom) unidas
 fig_caros.update_layout(
     yaxis=dict(categoryorder='total ascending', fixedrange=True),
     xaxis=dict(fixedrange=True), 
@@ -188,7 +183,6 @@ fig_caros.update_layout(
 )
 col_rank1.plotly_chart(fig_caros, width="stretch", config=CONFIG_GRAFICOS)
 
-# 2. Top 10 Votos Mais Baratos (Ignorando zeros)
 dados_validos = dados_filtrados[dados_filtrados["CUSTO_POR_VOTO"] > 0]
 top10_baratos = dados_validos.sort_values("CUSTO_POR_VOTO", ascending=True).head(10)
 fig_baratos = px.bar(
@@ -200,7 +194,6 @@ fig_baratos = px.bar(
     labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo (R$)"},
     color_discrete_sequence=["#00CC96"]
 )
-# Correção: O yaxis agora tem as duas instruções (ordem e bloqueio de zoom) unidas
 fig_baratos.update_layout(
     yaxis=dict(categoryorder='total descending', fixedrange=True),
     xaxis=dict(fixedrange=True), 
@@ -211,7 +204,7 @@ col_rank2.plotly_chart(fig_baratos, width="stretch", config=CONFIG_GRAFICOS)
 
 st.divider()
 
-# ---- Gráficos Originais (Com Bloqueio de Zoom) ----
+# ---- Gráficos Originais ----
 st.subheader("Análise Visual de Gastos")
 
 gasto_por_partido = (
@@ -227,7 +220,6 @@ fig_partido = px.bar(
     title="Gasto Total por Partido",
     labels={"SG_PARTIDO": "Partido", "VR_DESPESA_TOTAL": "Gasto Total (R$)"},
 )
-# Travando os eixos X e Y
 fig_partido.update_layout(xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True), dragmode=False)
 st.plotly_chart(fig_partido, width="stretch", config=CONFIG_GRAFICOS)
 
