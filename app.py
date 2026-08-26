@@ -80,16 +80,20 @@ dados_filtrados = dados[
 ]
 
 # ---- KPIs rápidos ----
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5) # Mudamos para 5 colunas
 
-# Ajuste da métrica para mostrar em relação ao limite real da câmara (513)
 total_eleitos = dados_filtrados['SQ_CANDIDATO'].nunique()
 col1.metric("Candidatos eleitos", f"{total_eleitos} de 513")
 
 col2.metric("Despesa total", f"R$ {dados_filtrados['VR_DESPESA_TOTAL'].sum():,.2f}")
 col3.metric("Votos totais", f"{dados_filtrados['QT_VOTOS_TOTAL'].sum():,.0f}".replace(",", "."))
+
 custo_medio = dados_filtrados["CUSTO_POR_VOTO"].mean()
 col4.metric("Custo médio/voto", f"R$ {custo_medio:,.2f}" if pd.notna(custo_medio) else "—")
+
+# NOVO: Cálculo e cartão do Desvio Padrão
+desvio_padrao = dados_filtrados["CUSTO_POR_VOTO"].std()
+col5.metric("Desvio Padrão", f"R$ {desvio_padrao:,.2f}" if pd.notna(desvio_padrao) else "—")
 
 st.divider()
 
