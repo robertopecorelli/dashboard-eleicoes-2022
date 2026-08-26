@@ -205,7 +205,24 @@ fig_baratos.update_layout(
 col_rank2.plotly_chart(fig_baratos, width="stretch", config=CONFIG_GRAFICOS)
 
 st.divider()
+st.divider()
 
+# ---- Distribuição e Desvio (Boxplot) ----
+st.subheader("📊 Raio-X da Dispersão (Boxplot de Custo/Voto)")
+st.caption("Veja a concentração dos gastos e os 'pontos fora da curva' (outliers).")
+
+fig_box = px.box(
+    dados_filtrados[dados_filtrados["CUSTO_POR_VOTO"] > 0], # Ignora zeros para não esmagar o gráfico
+    x="CUSTO_POR_VOTO",
+    y="SG_UF",
+    title="Distribuição do Custo por Voto por Estado",
+    labels={"CUSTO_POR_VOTO": "Custo por Voto (R$)", "SG_UF": "Estado"},
+    color="SG_UF"
+)
+# Esconde a legenda lateral (já está no eixo Y) e bloqueia o zoom
+fig_box.update_layout(showlegend=False, xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True), dragmode=False)
+
+st.plotly_chart(fig_box, width="stretch", config=CONFIG_GRAFICOS)
 # ---- Gráficos Originais ----
 st.subheader("Análise Visual de Gastos")
 
