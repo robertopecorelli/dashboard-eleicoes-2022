@@ -153,7 +153,44 @@ fig_uf = px.bar(
 )
 # Atualizado para o padrão 2026
 st.plotly_chart(fig_uf, width="stretch")
+st.divider()
 
+# ---- Rankings de Custo por Voto ----
+st.subheader("🏆 Rankings: Custo por Voto")
+
+# Cria duas colunas para os gráficos ficarem lado a lado
+col_rank1, col_rank2 = st.columns(2)
+
+# 1. Top 10 Votos Mais Caros
+top10_caros = dados_filtrados.sort_values("CUSTO_POR_VOTO", ascending=False).head(10)
+fig_caros = px.bar(
+    top10_caros,
+    x="CUSTO_POR_VOTO",
+    y="NM_URNA_CANDIDATO",
+    orientation="h", 
+    title="Top 10: Voto Mais Caro",
+    labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo por Voto (R$)"},
+    color_discrete_sequence=["#EF553B"] # Vermelho
+)
+# Ordena o gráfico para o maior ficar no topo
+fig_caros.update_layout(yaxis={'categoryorder':'total ascending'})
+col_rank1.plotly_chart(fig_caros, width="stretch")
+
+# 2. Top 10 Votos Mais Baratos (Ignorando custo R$ 0)
+dados_validos = dados_filtrados[dados_filtrados["CUSTO_POR_VOTO"] > 0]
+top10_baratos = dados_validos.sort_values("CUSTO_POR_VOTO", ascending=True).head(10)
+fig_baratos = px.bar(
+    top10_baratos,
+    x="CUSTO_POR_VOTO",
+    y="NM_URNA_CANDIDATO",
+    orientation="h",
+    title="Top 10: Voto Mais Barato",
+    labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo por Voto (R$)"},
+    color_discrete_sequence=["#00CC96"] # Verde
+)
+# Ordena o gráfico para o menor ficar no topo
+fig_baratos.update_layout(yaxis={'categoryorder':'total descending'})
+col_rank2.plotly_chart(fig_baratos, width="stretch")
 with st.expander("ℹ️ Notas metodológicas"):
     st.markdown(
         """
