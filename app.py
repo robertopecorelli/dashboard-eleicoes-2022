@@ -1,5 +1,3 @@
-%%writefile app.py
-
 """
 Dashboard Eleições 2022 — Deputados Federais Eleitos
 Cruzamento: Despesas de Campanha (TSE) x Votação (TSE) x População (IBGE)
