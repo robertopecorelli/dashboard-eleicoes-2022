@@ -51,6 +51,15 @@ st.caption("Cruzamento de Despesas de Campanha (TSE), Votação (TSE) e Populaç
 try:
     dados = carregar_dados()
     geojson_brasil = carregar_geojson()
+    try:
+    dados = carregar_dados()
+    geojson_brasil = carregar_geojson()
+    
+    # --- EXPULSA OS "NÃO ELEITOS" DO ARQUIVO ---
+    if "DS_SIT_TOT_TURNO" in dados.columns:
+        dados = dados[~dados["DS_SIT_TOT_TURNO"].str.upper().str.contains("NÃO ELEITO", na=False)]
+
+except FileNotFoundError as e:
 except FileNotFoundError as e:
     st.error(f"Erro de arquivo: {e}")
     st.stop()
