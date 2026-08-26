@@ -7,12 +7,17 @@ import os
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import json
+import urllib.request
 
 # ----------------------------------------------------------------------------
-# Configuração (Atualizado para o Streamlit Cloud / GitHub)
+# Configuração
 # ----------------------------------------------------------------------------
 CARGO_FILTRO = "DEPUTADO FEDERAL"
 CAMINHO_DADOS_LIMPOS = "dados_limpos.csv"
+
+# Configuração padrão para bloquear o zoom e os botões em todos os gráficos
+CONFIG_GRAFICOS = {'displayModeBar': False, 'scrollZoom': False}
 
 st.set_page_config(
     page_title="Dashboard Eleições 2022 - Custo por Voto",
@@ -20,7 +25,7 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------------------------
-# Carga de dados - Lendo direto do arquivo limpo no GitHub
+# Carga de dados (CSV e Mapa GeoJSON)
 # ----------------------------------------------------------------------------
 @st.cache_data(show_spinner="Carregando dados...")
 def carregar_dados() -> pd.DataFrame:
@@ -28,6 +33,14 @@ def carregar_dados() -> pd.DataFrame:
         return pd.read_csv(CAMINHO_DADOS_LIMPOS, sep=";", encoding="latin1")
     else:
         raise FileNotFoundError("Arquivo dados_limpos.csv não encontrado no repositório.")
+
+@st.cache_data(show_spinner="Carregando mapa do Brasil...")
+def carregar_geojson():
+    # Puxa as fronteiras dos estados brasileiros de um repositório público confiável
+    url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    with urllib.request.urlopen(req) as response:
+        return json.loads(response.read().decode())
 
 # ----------------------------------------------------------------------------
 # App principal
@@ -37,19 +50,14 @@ st.caption("Cruzamento de Despesas de Campanha (TSE), Votação (TSE) e Populaç
 
 try:
     dados = carregar_dados()
+    geojson_brasil = carregar_geojson()
 except FileNotFoundError as e:
-    st.error(
-        "Não encontrei o arquivo `dados_limpos.csv` no seu GitHub. "
-        "Certifique-se de que você fez o upload desse arquivo no repositório.\n\n"
-        f"Detalhe: {e}"
-    )
+    st.error(f"Erro de arquivo: {e}")
     st.stop()
 
 if dados.empty:
     st.warning("Nenhum registro encontrado para o cargo/situação filtrados.")
     st.stop()
-
-st.caption("📦 Usando cache pré-processado: `dados_limpos.csv`")
 
 # ---- Sidebar: filtros ----
 st.sidebar.header("Filtros")
@@ -68,7 +76,11 @@ dados_filtrados = dados[
 
 # ---- KPIs rápidos ----
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Candidatos eleitos", f"{dados_filtrados['SQ_CANDIDATO'].nunique():,}".replace(",", "."))
+
+# Ajuste da métrica para mostrar em relação ao limite real da câmara (513)
+total_eleitos = dados_filtrados['SQ_CANDIDATO'].nunique()
+col1.metric("Candidatos eleitos", f"{total_eleitos} de 513")
+
 col2.metric("Despesa total", f"R$ {dados_filtrados['VR_DESPESA_TOTAL'].sum():,.2f}")
 col3.metric("Votos totais", f"{dados_filtrados['QT_VOTOS_TOTAL'].sum():,.0f}".replace(",", "."))
 custo_medio = dados_filtrados["CUSTO_POR_VOTO"].mean()
@@ -85,9 +97,7 @@ colunas_exibir = {
     "SG_UF": "UF",
     "QT_VOTOS_TOTAL": "Votos",
     "VR_DESPESA_TOTAL": "Despesa (R$)",
-    "POPULACAO": "População UF",
-    "CUSTO_POR_VOTO": "Custo/Voto (R$)",
-    "CUSTO_POR_HABITANTE": "Custo/Habitante (R$)",
+    "CUSTO_POR_VOTO": "Custo/Voto (R$)"
 }
 
 tabela = (
@@ -96,30 +106,97 @@ tabela = (
     .sort_values("Custo/Voto (R$)", ascending=False)
 )
 
-# Atualizado para o padrão 2026 (width="stretch")
 st.dataframe(
     tabela,
     width="stretch",
     hide_index=True,
     column_config={
         "Despesa (R$)": st.column_config.NumberColumn(format="R$ %.2f"),
-        "Custo/Voto (R$)": st.column_config.NumberColumn(format="R$ %.4f"),
-        "Custo/Habitante (R$)": st.column_config.NumberColumn(format="R$ %.6f"),
-        "Votos": st.column_config.NumberColumn(format="%d"),
-        "População UF": st.column_config.NumberColumn(format="%d"),
+        "Custo/Voto (R$)": st.column_config.NumberColumn(format="R$ %.2f"),
+        "Votos": st.column_config.NumberColumn(format="%d")
     },
 )
 
 st.download_button(
-    "⬇️ Baixar tabela filtrada (CSV)",
+    "⬇️ Baixar tabela filtrada",
     data=tabela.to_csv(index=False, sep=";").encode("latin1"),
-    file_name="cruzamento_eleicoes_2022.csv",
+    file_name="eleicoes_2022.csv",
     mime="text/csv",
 )
 
 st.divider()
 
-# ---- Análise Visual de Gastos ----
+# ---- NOVO: Mapa do Brasil ----
+st.subheader("🗺️ Calor: Custo Médio por Voto nos Estados")
+
+# Calcula o custo médio real do estado (Total Gasto / Total Votos)
+mapa_dados = dados_filtrados.groupby("SG_UF", as_index=False).agg(
+    VR_DESPESA_TOTAL=("VR_DESPESA_TOTAL", "sum"),
+    QT_VOTOS_TOTAL=("QT_VOTOS_TOTAL", "sum")
+)
+mapa_dados["CUSTO_MEDIO_UF"] = mapa_dados["VR_DESPESA_TOTAL"] / mapa_dados["QT_VOTOS_TOTAL"].replace(0, pd.NA)
+
+fig_mapa = px.choropleth(
+    mapa_dados,
+    geojson=geojson_brasil,
+    locations="SG_UF",
+    featureidkey="properties.sigla",
+    color="CUSTO_MEDIO_UF",
+    color_continuous_scale="Reds",
+    title="Custo Médio do Voto (R$) por Estado",
+    labels={"CUSTO_MEDIO_UF": "Custo/Voto (R$)", "SG_UF": "Estado"}
+)
+# Centraliza o mapa e desabilita completamente interações de zoom
+fig_mapa.update_geos(fitbounds="locations", visible=False)
+fig_mapa.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, dragmode=False)
+
+st.plotly_chart(fig_mapa, width="stretch", config=CONFIG_GRAFICOS)
+
+st.divider()
+
+# ---- Rankings de Custo por Voto (Com Bloqueio de Zoom) ----
+st.subheader("🏆 Rankings: Custo por Voto")
+
+col_rank1, col_rank2 = st.columns(2)
+
+# 1. Top 10 Votos Mais Caros
+top10_caros = dados_filtrados.sort_values("CUSTO_POR_VOTO", ascending=False).head(10)
+fig_caros = px.bar(
+    top10_caros,
+    x="CUSTO_POR_VOTO",
+    y="NM_URNA_CANDIDATO",
+    orientation="h", 
+    title="Top 10: Votos Mais Caros",
+    labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo (R$)"},
+    color_discrete_sequence=["#EF553B"]
+)
+fig_caros.update_layout(
+    yaxis={'categoryorder':'total ascending'},
+    xaxis=dict(fixedrange=True), yaxis_title=None, yaxis=dict(fixedrange=True), dragmode=False
+)
+col_rank1.plotly_chart(fig_caros, width="stretch", config=CONFIG_GRAFICOS)
+
+# 2. Top 10 Votos Mais Baratos (Ignorando zeros)
+dados_validos = dados_filtrados[dados_filtrados["CUSTO_POR_VOTO"] > 0]
+top10_baratos = dados_validos.sort_values("CUSTO_POR_VOTO", ascending=True).head(10)
+fig_baratos = px.bar(
+    top10_baratos,
+    x="CUSTO_POR_VOTO",
+    y="NM_URNA_CANDIDATO",
+    orientation="h",
+    title="Top 10: Votos Mais Baratos",
+    labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo (R$)"},
+    color_discrete_sequence=["#00CC96"]
+)
+fig_baratos.update_layout(
+    yaxis={'categoryorder':'total descending'},
+    xaxis=dict(fixedrange=True), yaxis_title=None, yaxis=dict(fixedrange=True), dragmode=False
+)
+col_rank2.plotly_chart(fig_baratos, width="stretch", config=CONFIG_GRAFICOS)
+
+st.divider()
+
+# ---- Gráficos Originais (Com Bloqueio de Zoom) ----
 st.subheader("Análise Visual de Gastos")
 
 gasto_por_partido = (
@@ -135,62 +212,10 @@ fig_partido = px.bar(
     title="Gasto Total por Partido",
     labels={"SG_PARTIDO": "Partido", "VR_DESPESA_TOTAL": "Gasto Total (R$)"},
 )
-# Atualizado para o padrão 2026
-st.plotly_chart(fig_partido, width="stretch")
+# Travando os eixos X e Y
+fig_partido.update_layout(xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True), dragmode=False)
+st.plotly_chart(fig_partido, width="stretch", config=CONFIG_GRAFICOS)
 
-gasto_por_uf = (
-    dados_filtrados.groupby("SG_UF", as_index=False)["VR_DESPESA_TOTAL"]
-    .sum()
-    .sort_values("VR_DESPESA_TOTAL", ascending=False)
-)
-
-fig_uf = px.bar(
-    gasto_por_uf,
-    x="SG_UF",
-    y="VR_DESPESA_TOTAL",
-    title="Gasto Total por Estado (UF)",
-    labels={"SG_UF": "UF", "VR_DESPESA_TOTAL": "Gasto Total (R$)"},
-)
-# Atualizado para o padrão 2026
-st.plotly_chart(fig_uf, width="stretch")
-st.divider()
-
-# ---- Rankings de Custo por Voto ----
-st.subheader("🏆 Rankings: Custo por Voto")
-
-# Cria duas colunas para os gráficos ficarem lado a lado
-col_rank1, col_rank2 = st.columns(2)
-
-# 1. Top 10 Votos Mais Caros
-top10_caros = dados_filtrados.sort_values("CUSTO_POR_VOTO", ascending=False).head(10)
-fig_caros = px.bar(
-    top10_caros,
-    x="CUSTO_POR_VOTO",
-    y="NM_URNA_CANDIDATO",
-    orientation="h", 
-    title="Top 10: Voto Mais Caro",
-    labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo por Voto (R$)"},
-    color_discrete_sequence=["#EF553B"] # Vermelho
-)
-# Ordena o gráfico para o maior ficar no topo
-fig_caros.update_layout(yaxis={'categoryorder':'total ascending'})
-col_rank1.plotly_chart(fig_caros, width="stretch")
-
-# 2. Top 10 Votos Mais Baratos (Ignorando custo R$ 0)
-dados_validos = dados_filtrados[dados_filtrados["CUSTO_POR_VOTO"] > 0]
-top10_baratos = dados_validos.sort_values("CUSTO_POR_VOTO", ascending=True).head(10)
-fig_baratos = px.bar(
-    top10_baratos,
-    x="CUSTO_POR_VOTO",
-    y="NM_URNA_CANDIDATO",
-    orientation="h",
-    title="Top 10: Voto Mais Barato",
-    labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo por Voto (R$)"},
-    color_discrete_sequence=["#00CC96"] # Verde
-)
-# Ordena o gráfico para o menor ficar no topo
-fig_baratos.update_layout(yaxis={'categoryorder':'total descending'})
-col_rank2.plotly_chart(fig_baratos, width="stretch")
 with st.expander("ℹ️ Notas metodológicas"):
     st.markdown(
         """
