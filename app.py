@@ -205,7 +205,6 @@ fig_baratos.update_layout(
 col_rank2.plotly_chart(fig_baratos, width="stretch", config=CONFIG_GRAFICOS)
 
 st.divider()
-st.divider()
 
 # ---- Distribuição e Desvio (Boxplot) ----
 st.subheader("📊 Raio-X da Dispersão (Boxplot de Custo/Voto)")
