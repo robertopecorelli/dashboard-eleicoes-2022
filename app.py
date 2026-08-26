@@ -170,9 +170,12 @@ fig_caros = px.bar(
     labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo (R$)"},
     color_discrete_sequence=["#EF553B"]
 )
+# Correção: O yaxis agora tem as duas instruções (ordem e bloqueio de zoom) unidas
 fig_caros.update_layout(
-    yaxis={'categoryorder':'total ascending'},
-    xaxis=dict(fixedrange=True), yaxis_title=None, yaxis=dict(fixedrange=True), dragmode=False
+    yaxis=dict(categoryorder='total ascending', fixedrange=True),
+    xaxis=dict(fixedrange=True), 
+    yaxis_title=None, 
+    dragmode=False
 )
 col_rank1.plotly_chart(fig_caros, width="stretch", config=CONFIG_GRAFICOS)
 
@@ -188,9 +191,12 @@ fig_baratos = px.bar(
     labels={"NM_URNA_CANDIDATO": "", "CUSTO_POR_VOTO": "Custo (R$)"},
     color_discrete_sequence=["#00CC96"]
 )
+# Correção: O yaxis agora tem as duas instruções (ordem e bloqueio de zoom) unidas
 fig_baratos.update_layout(
-    yaxis={'categoryorder':'total descending'},
-    xaxis=dict(fixedrange=True), yaxis_title=None, yaxis=dict(fixedrange=True), dragmode=False
+    yaxis=dict(categoryorder='total descending', fixedrange=True),
+    xaxis=dict(fixedrange=True), 
+    yaxis_title=None, 
+    dragmode=False
 )
 col_rank2.plotly_chart(fig_baratos, width="stretch", config=CONFIG_GRAFICOS)
 
